@@ -13,12 +13,25 @@ class DetailViewController: UIViewController {
     @IBOutlet weak var label: UILabel!
     var index: Int!
 
+    @IBOutlet weak var pictureView: UIImageView!
+    
+    var post: NSDictionary!
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         
         label.text = ("You tapped the cell at index \(index)")
 
-        // Do any additional setup after loading the view.
+    
+        // photos is NOT nil, go ahead and access element 0 and run the code in the curly braces
+    
+        if let photos = post["photos"] as? [NSDictionary] {
+            let imageUrlString = photos[0].value(forKeyPath: "original_size.url") as? String
+            if let imageUrl = URL(string: imageUrlString!){
+                pictureView.setImageWith(imageUrl)
+            }
+        }
+        
     }
 
     override func didReceiveMemoryWarning() {
@@ -37,4 +50,5 @@ class DetailViewController: UIViewController {
     }
     */
 
-}
+    }
+

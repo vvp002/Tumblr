@@ -9,9 +9,11 @@
 import UIKit
 import AFNetworking
 
-class PhotosViewController: UIViewController,UITableViewDataSource, UITableViewDelegate {
+class PhotosViewController: UIViewController,UITableViewDataSource, UITableViewDelegate, UIScrollViewDelegate {
     
     var posts: [NSDictionary] = []
+    var isMoreDataLoading = false
+    var offset = 0
     
     @IBOutlet weak var tableView: UITableView!
     
@@ -20,7 +22,14 @@ class PhotosViewController: UIViewController,UITableViewDataSource, UITableViewD
 
         tableView.delegate = self
         tableView.dataSource = self
-        tableView.rowHeight = 240;
+        
+        // Initialize a UIRefreshControl
+        let refreshControl = UIRefreshControl()
+        refreshControl.addTarget(self, action: #selector(refreshControlAction(_:)), for: UIControlEvents.valueChanged)
+        
+        // add refresh control to table view
+        tableView.insertSubview(refreshControl, at: 0)
+        
 
         // Do any additional setup after loading the view.
         let url = URL(string:"https://api.tumblr.com/v2/blog/humansofnewyork.tumblr.com/posts/photo?api_key=Q6vHoaVm5L1u2ZAW1fqv3Jw48gFzYVg9P0vH0VHl3GVy6quoGV")
@@ -64,7 +73,6 @@ class PhotosViewController: UIViewController,UITableViewDataSource, UITableViewD
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "PhotoCell") as! PhotoCell
         let post = posts[indexPath.row]
-        cell.textLabel?.text = "This is row \(indexPath.row)"
         
         let timestamp = post["timestamp"] as? String
         let photos = post.value(forKeyPath: "photos") as? [NSDictionary]
@@ -86,27 +94,104 @@ class PhotosViewController: UIViewController,UITableViewDataSource, UITableViewD
         return cell
     }
     
-    func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
-        
-        // Get the index path from the cell that was tapped
-        let indexPath = tableView.indexPathForSelectedRow
-        // Get the Row of the Index Path and set as index
-        let index = indexPath?.row
-        // Get in touch with the DetailViewController
-        let detailViewController = segue.destination as! DetailViewController
-        // Pass on the data to the Detail ViewController by setting it's indexPathRow value
-        detailViewController.index = index
+    
+    
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+     
+        tableView.deselectRow(at: indexPath, animated: true)
     }
     
+    // Makes a network request to get updated data
+    // Updates the tableView with the new data
+    // Hides the RefreshControl
+    func refreshControlAction(_ refreshControl: UIRefreshControl) {
+        
+        // ... Create the URLRequest `myRequest` ...
+        let url = URL(string:"https://api.tumblr.com/v2/blog/humansofnewyork.tumblr.com/posts/photo?api_key=Q6vHoaVm5L1u2ZAW1fqv3Jw48gFzYVg9P0vH0VHl3GVy6quoGV&limit=20&offset")
+        let request = URLRequest(url: url!)
+        
+        // Configure session so that completion handler is executed on main UI thread
+        let session = URLSession(configuration: .default, delegate: nil, delegateQueue: OperationQueue.main)
+        let task: URLSessionDataTask = session.dataTask(with: request) { (data: Data?, response: URLResponse?, error: Error?) in
+            
+            // ... Use the new data to update the data source ...
+            
+            // Reload the tableView now that there is new data
+            self.tableView.reloadData()
+            
+            // Tell the refreshControl to stop spinning
+            refreshControl.endRefreshing()
+        }
+        task.resume()
+        
+    }
+    
+    func loadMoreData() {
+        
+        // ... Create the NSURLRequest (myRequest) ...
+        let url = URL(string:"https://api.tumblr.com/v2/blog/humansofnewyork.tumblr.com/posts/photo?api_key=Q6vHoaVm5L1u2ZAW1fqv3Jw48gFzYVg9P0vH0VHl3GVy6quoGV&offset=0&limit=20")
+        let request = URLRequest(url: url!)
 
-    /*
+        // Configure session so that completion handler is executed on main UI thread
+        let session = URLSession(
+            configuration: URLSessionConfiguration.default,
+            delegate:nil,
+            delegateQueue:OperationQueue.main
+        )
+        
+        let task : URLSessionDataTask = session.dataTask(with: request, completionHandler: { (data, response, error) in
+                                                                        
+        // Update flag
+        self.isMoreDataLoading = false
+                                                                        
+        // ... Use the new data to update the data source ...
+            if let responseData = data {
+                if let responseDictionary = try! JSONSerialization.jsonObject(with: responseData, options: []) as? NSDictionary {
+                    
+                    let responseFieldDictionary = responseDictionary["response"] as! NSDictionary
+                    
+                    self.posts.append(contentsOf: responseFieldDictionary["posts"] as! [NSDictionary])
+                }
+            }
+            self.offset += 20
+        // Reload the tableView now that there is new data
+        self.tableView.reloadData()
+        
+        });
+        task.resume()
+    }
+    
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        if (!isMoreDataLoading) {
+            // Calculate the position of one screen length before the bottom of the results
+            let scrollViewContentHeight = tableView.contentSize.height
+            let scrollOffsetThreshold = scrollViewContentHeight - tableView.bounds.size.height
+            // When the user has scrolled past the threshold, start requesting
+            if(scrollView.contentOffset.y > scrollOffsetThreshold && tableView.isDragging) {
+                isMoreDataLoading = true
+                
+                // ... Code to load more results ...
+                loadMoreData()
+            }
+        }
+    }
+
+    
     // MARK: - Navigation
 
     // In a storyboard-based application, you will often want to do a little preparation before navigation
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         // Get the new view controller using segue.destinationViewController.
         // Pass the selected object to the new view controller.
+        
+        if let detailVC = segue.destination as? DetailViewController{
+            if let cell = sender as? UITableViewCell{
+                if let indexPath = tableView.indexPath(for: cell){
+                    let row = indexPath.row
+                    let post = posts[row]
+                    detailVC.post = post
+                }
+            }
+        }
     }
-    */
-
 }
